@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "WinglePhotos (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "WinglePhotos (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
