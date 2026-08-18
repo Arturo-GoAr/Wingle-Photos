@@ -8,6 +8,8 @@ using Microsoft.UI.Xaml.Navigation;
 using WinglePhotos.Features.Favorites;
 using WinglePhotos.Features.PhotoLibrary;
 using WinglePhotos.Features.PhotoSources;
+using WinglePhotos.Features.Settings;
+using WinglePhotos.Features.Tags;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -65,6 +67,8 @@ public partial class App : Application
         Window = new MainWindow();
         DispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
         Window.Activate();
+
+        _ = Services.GetRequiredService<IThemeService>().LoadAndApplyAsync();
     }
 
     private static IServiceProvider BuildServiceProvider()
@@ -75,7 +79,11 @@ public partial class App : Application
         services.AddSingleton<IPhotoEnumerationService, PhotoEnumerationService>();
         services.AddSingleton<IThumbnailCacheService, ThumbnailCacheService>();
         services.AddSingleton<IFavoritesService, FavoritesService>();
-        services.AddTransient<MainViewModel>();
+        services.AddSingleton<ITagsService, TagsService>();
+        services.AddSingleton<ISettingsStore, SqliteSettingsStore>();
+        services.AddSingleton<IThemeService, ThemeService>();
+        services.AddSingleton<MainViewModel>();
+        services.AddSingleton<SettingsViewModel>();
 
         return services.BuildServiceProvider();
     }

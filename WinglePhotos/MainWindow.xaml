@@ -24,11 +24,31 @@
             </TitleBar.IconSource>
         </TitleBar>
 
-        <!--
-            The Frame hosts pages for your application content. Add your UI to
-            MainPage.xaml rather than here so you can use Page features such as
-            navigation events and the Loaded lifecycle.
-        -->
-        <Frame x:Name="RootFrame" Grid.Row="1" />
+        <NavigationView
+            x:Name="RootNavigationView"
+            Grid.Row="1"
+            PaneTitle="Wingle Photos"
+            IsSettingsVisible="False"
+            IsBackButtonVisible="Collapsed"
+            SelectionChanged="RootNavigationView_SelectionChanged">
+            <NavigationView.MenuItems>
+                <NavigationViewItem x:Name="AllPhotosItem" Content="Todo" Tag="all" Icon="Pictures" />
+                <NavigationViewItem Content="Fotos" Tag="photos" Icon="Camera" />
+                <NavigationViewItem Content="Videos" Tag="videos" Icon="Video" />
+                <NavigationViewItem Content="Favoritos" Tag="favorites" Icon="Favorite" />
+                <NavigationViewItem Content="Carpetas" Tag="folders" Icon="Folder" />
+            </NavigationView.MenuItems>
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem Content="Configuración" Tag="settings" Icon="Setting" />
+                <NavigationViewItem Content="Ayuda / Documentación" Tag="help" Icon="Help" />
+            </NavigationView.FooterMenuItems>
+
+            <!--
+                The Frame hosts pages for your application content. Add your UI to
+                the individual feature pages rather than here so you can use Page
+                features such as navigation events and the Loaded lifecycle.
+            -->
+            <Frame x:Name="RootFrame" />
+        </NavigationView>
     </Grid>
 </Window>

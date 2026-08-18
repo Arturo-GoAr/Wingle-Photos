@@ -20,7 +20,9 @@ public sealed class ThumbnailCacheService : IThumbnailCacheService
         LoadOrGenerateAsync(item, gridCacheFolderTask, GridSize, ThumbnailMode.PicturesView, cancellationToken);
 
     public Task<BitmapImage?> GetPreviewAsync(PhotoItem item, CancellationToken cancellationToken) =>
-        LoadOrGenerateAsync(item, previewCacheFolderTask, PreviewSize, ThumbnailMode.SingleItem, cancellationToken);
+        // Same ThumbnailMode as the grid (PicturesView): it reads the fast embedded/cached
+        // preview. ThumbnailMode.SingleItem can force a full, slow re-decode for RAW files.
+        LoadOrGenerateAsync(item, previewCacheFolderTask, PreviewSize, ThumbnailMode.PicturesView, cancellationToken);
 
     private static async Task<BitmapImage?> LoadOrGenerateAsync(
         PhotoItem item, Task<StorageFolder> cacheFolderTask, int size, ThumbnailMode mode, CancellationToken cancellationToken)

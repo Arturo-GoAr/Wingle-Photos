@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using WinglePhotos.Features.PhotoSources;
+using Microsoft.UI.Xaml.Navigation;
 using WinglePhotos.Features.Viewer;
 
 namespace WinglePhotos.Features.PhotoLibrary;
@@ -14,6 +14,16 @@ public sealed partial class MainPage : Page
     {
         InitializeComponent();
         Loaded += async (_, _) => await ViewModel.InitializeAsync();
+    }
+
+    protected override void OnNavigatedTo(NavigationEventArgs e)
+    {
+        base.OnNavigatedTo(e);
+
+        if (e.Parameter is MainPageNavigationArgs args)
+        {
+            ViewModel.ApplyFilter(args.FavoritesOnly, args.Folder, args.MediaKind);
+        }
     }
 
     private void PhotosGridView_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
@@ -32,12 +42,47 @@ public sealed partial class MainPage : Page
         }
     }
 
-    private void RemoveSourceButton_Click(object sender, RoutedEventArgs e)
+    private void FavoriteMenuItem_Click(object sender, RoutedEventArgs e) => FavoriteButton_Click(sender, e);
+
+    private async void AddTagMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement { Tag: PhotoSource source })
+        if (sender is FrameworkElement { Tag: PhotoItem item })
         {
-            _ = ViewModel.RemoveSourceCommand.ExecuteAsync(source);
+            await AddTagDialog.ShowAsync(item, ViewModel, Content.XamlRoot);
         }
+    }
+
+    private async void ViewDetailsMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: PhotoItem item })
+        {
+            await PhotoDetailsDialog.ShowAsync(item, Content.XamlRoot);
+        }
+    }
+
+    private async void DeleteMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: PhotoItem item })
+        {
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = item.IsVideo ? "Eliminar video" : "Eliminar foto",
+            Content = "Se moverá a la papelera de reciclaje. ¿Continuar?",
+            PrimaryButtonText = "Eliminar",
+            CloseButtonText = "Cancelar",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = Content.XamlRoot,
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        await ViewModel.DeletePhotoCommand.ExecuteAsync(item);
     }
 
     private void PhotosGridView_ItemClick(object sender, ItemClickEventArgs e)

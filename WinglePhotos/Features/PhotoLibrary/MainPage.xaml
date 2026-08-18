@@ -5,7 +5,6 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:WinglePhotos.Features.PhotoLibrary"
-    xmlns:sources="using:WinglePhotos.Features.PhotoSources"
     xmlns:shared="using:WinglePhotos.Shared"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
@@ -26,47 +25,7 @@
         </Grid.RowDefinitions>
 
         <CommandBar Grid.Row="0" DefaultLabelPosition="Right" Background="Transparent" IsOpen="False">
-            <AppBarButton Icon="Folder" Label="Carpetas de origen">
-                <AppBarButton.Flyout>
-                    <Flyout>
-                        <StackPanel Spacing="8" Width="320">
-                            <TextBlock Text="Carpetas de origen" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                            <ListView
-                                ItemsSource="{x:Bind ViewModel.Sources}"
-                                SelectionMode="None"
-                                MaxHeight="240">
-                                <ListView.ItemTemplate>
-                                    <DataTemplate x:DataType="sources:PhotoSource">
-                                        <Grid ColumnSpacing="8">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel Grid.Column="0">
-                                                <TextBlock Text="{x:Bind DisplayPath}" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock
-                                                    Text="No disponible"
-                                                    Foreground="{ThemeResource SystemFillColorCriticalBrush}"
-                                                    Style="{StaticResource CaptionTextBlockStyle}"
-                                                    Visibility="{x:Bind IsUnavailable, Converter={StaticResource BoolToVisibilityConverter}}" />
-                                            </StackPanel>
-                                            <Button
-                                                Grid.Column="1"
-                                                Click="RemoveSourceButton_Click"
-                                                Tag="{x:Bind}"
-                                                IsEnabled="{x:Bind CanRemove}"
-                                                Content="Quitar" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ListView.ItemTemplate>
-                            </ListView>
-                            <Button Content="Agregar carpeta…" Command="{x:Bind ViewModel.AddSourceCommand}" HorizontalAlignment="Stretch" />
-                        </StackPanel>
-                    </Flyout>
-                </AppBarButton.Flyout>
-            </AppBarButton>
             <AppBarButton Icon="Refresh" Label="Actualizar" Command="{x:Bind ViewModel.RescanCommand}" />
-            <AppBarToggleButton Icon="OutlineStar" Label="Solo favoritos" IsChecked="{x:Bind ViewModel.ShowFavoritesOnly, Mode=TwoWay}" />
             <AppBarSeparator />
             <AppBarButton Label="{x:Bind ViewModel.PhotoCount, Mode=OneWay}" IsEnabled="False" />
         </CommandBar>
@@ -96,9 +55,40 @@
                 Padding="12">
                 <GridView.ItemTemplate>
                     <DataTemplate x:DataType="local:PhotoItem">
-                        <Grid Width="150" Height="150" Margin="2">
+                        <Grid Width="150" Height="150" Margin="2" ContextFlyout="{StaticResource ItemMenuFlyout}">
+                            <Grid.Resources>
+                                <MenuFlyout x:Key="ItemMenuFlyout" Placement="Bottom">
+                                    <MenuFlyoutItem Text="Favorito" Tag="{x:Bind}" Click="FavoriteMenuItem_Click">
+                                        <MenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="{x:Bind IsFavorite, Mode=OneWay, Converter={StaticResource BoolToStarGlyphConverter}}" />
+                                        </MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Agregar etiqueta" Tag="{x:Bind}" Click="AddTagMenuItem_Click">
+                                        <MenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE8EC;" />
+                                        </MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Ver detalles" Tag="{x:Bind}" Click="ViewDetailsMenuItem_Click">
+                                        <MenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE946;" />
+                                        </MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Eliminar" Tag="{x:Bind}" Click="DeleteMenuItem_Click">
+                                        <MenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE74D;" />
+                                        </MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                </MenuFlyout>
+                            </Grid.Resources>
                             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
                             <Image Source="{x:Bind Thumbnail, Mode=OneWay}" Stretch="UniformToFill" />
+                            <FontIcon
+                                Glyph="&#xE768;"
+                                Foreground="White"
+                                FontSize="20"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Visibility="{x:Bind IsVideo, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}" />
                             <Button
                                 Click="FavoriteButton_Click"
                                 Tag="{x:Bind}"
@@ -112,6 +102,16 @@
                                     Glyph="{x:Bind IsFavorite, Mode=OneWay, Converter={StaticResource BoolToStarGlyphConverter}}"
                                     Foreground="Gold"
                                     FontSize="16" />
+                            </Button>
+                            <Button
+                                Flyout="{StaticResource ItemMenuFlyout}"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Bottom"
+                                Margin="2"
+                                Padding="6">
+                                <FontIcon Glyph="&#xE712;" Foreground="White" FontSize="14" />
                             </Button>
                         </Grid>
                     </DataTemplate>

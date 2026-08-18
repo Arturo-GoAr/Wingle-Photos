@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Windows.Storage;
 using WinglePhotos.Features.Favorites;
 using WinglePhotos.Features.PhotoSources;
+using WinglePhotos.Features.Tags;
 
 namespace WinglePhotos.Features.PhotoLibrary;
 
@@ -15,12 +16,14 @@ public partial class MainViewModel : ObservableObject
     private readonly IPhotoEnumerationService enumerationService;
     private readonly IThumbnailCacheService thumbnailCacheService;
     private readonly IFavoritesService favoritesService;
+    private readonly ITagsService tagsService;
 
     private readonly List<PhotoItem> allItems = new();
     private readonly Dictionary<DateOnly, PhotoDateGroup> groupsByDate = new();
 
     private CancellationTokenSource? scanCancellation;
     private Task scanTask = Task.CompletedTask;
+    private bool initialized;
 
     [ObservableProperty]
     private bool isLoading;
@@ -29,9 +32,16 @@ public partial class MainViewModel : ObservableObject
     private bool showFavoritesOnly;
 
     [ObservableProperty]
+    private PhotoSource? selectedFolder;
+
+    [ObservableProperty]
+    private MediaKindFilter mediaKind = MediaKindFilter.All;
+
+    [ObservableProperty]
     private int photoCount;
 
-    public bool IsEmpty => !IsLoading && PhotoCount == 0;
+    /// <summary>Empty relative to the current filter (favorites/folder), not the whole library.</summary>
+    public bool IsEmpty => !IsLoading && Groups.Count == 0;
 
     public ObservableCollection<PhotoDateGroup> Groups { get; } = new();
 
@@ -41,17 +51,32 @@ public partial class MainViewModel : ObservableObject
         IPhotoSourceService sourceService,
         IPhotoEnumerationService enumerationService,
         IThumbnailCacheService thumbnailCacheService,
-        IFavoritesService favoritesService)
+        IFavoritesService favoritesService,
+        ITagsService tagsService)
     {
         this.sourceService = sourceService;
         this.enumerationService = enumerationService;
         this.thumbnailCacheService = thumbnailCacheService;
         this.favoritesService = favoritesService;
+        this.tagsService = tagsService;
+        Groups.CollectionChanged += (_, _) => OnPropertyChanged(nameof(IsEmpty));
     }
 
+    /// <summary>
+    /// Loads sources/favorites and runs the first scan. Safe to call every time
+    /// MainPage is navigated to — the underlying view model is a DI singleton, so
+    /// only the first call does real work; later ones are a no-op.
+    /// </summary>
     public async Task InitializeAsync()
     {
+        if (initialized)
+        {
+            return;
+        }
+
+        initialized = true;
         await favoritesService.LoadAsync();
+        await tagsService.LoadAsync();
         await sourceService.LoadAsync();
         await RescanAsync();
     }
@@ -92,10 +117,15 @@ public partial class MainViewModel : ObservableObject
             await foreach (var item in enumerationService.EnumerateAsync(availableSources, cts.Token))
             {
                 item.IsFavorite = favoritesService.IsFavorite(item.Key);
+                foreach (var tag in tagsService.GetTags(item.Key))
+                {
+                    item.Tags.Add(tag);
+                }
+
                 allItems.Add(item);
                 PhotoCount++;
 
-                if (!ShowFavoritesOnly || item.IsFavorite)
+                if (MatchesFilter(item))
                 {
                     Buffer(pending, item);
                     pendingCount++;
@@ -217,6 +247,30 @@ public partial class MainViewModel : ObservableObject
         RemoveFromGroups(item);
     }
 
+    public IReadOnlyList<string> AllTagSuggestions => tagsService.AllTags;
+
+    public async Task AddTagAsync(PhotoItem item, string tag)
+    {
+        await tagsService.AddTagAsync(item.Key, tag);
+
+        var normalized = tag.Trim();
+        if (normalized.Length > 0 && !item.Tags.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+        {
+            item.Tags.Add(normalized);
+        }
+    }
+
+    public async Task RemoveTagAsync(PhotoItem item, string tag)
+    {
+        await tagsService.RemoveTagAsync(item.Key, tag);
+
+        var existing = item.Tags.FirstOrDefault(t => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            item.Tags.Remove(existing);
+        }
+    }
+
     [RelayCommand]
     private async Task LoadThumbnailAsync(PhotoItem item)
     {
@@ -228,11 +282,47 @@ public partial class MainViewModel : ObservableObject
         item.Thumbnail = await thumbnailCacheService.GetThumbnailAsync(item, CancellationToken.None);
     }
 
+    /// <summary>Applies all filter dimensions at once, e.g. from sidebar navigation.</summary>
+    public void ApplyFilter(bool favoritesOnly, PhotoSource? folder, MediaKindFilter mediaKind = MediaKindFilter.All)
+    {
+        ShowFavoritesOnly = favoritesOnly;
+        SelectedFolder = folder;
+        MediaKind = mediaKind;
+    }
+
+    private bool MatchesFilter(PhotoItem item)
+    {
+        if (ShowFavoritesOnly && !item.IsFavorite)
+        {
+            return false;
+        }
+
+        if (MediaKind == MediaKindFilter.Photos && item.IsVideo)
+        {
+            return false;
+        }
+
+        if (MediaKind == MediaKindFilter.Videos && !item.IsVideo)
+        {
+            return false;
+        }
+
+        if (SelectedFolder?.Folder is { } folder &&
+            !item.Path.StartsWith(folder.Path, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     partial void OnShowFavoritesOnlyChanged(bool value) => RebuildGroupsFromAllItems();
 
-    partial void OnIsLoadingChanged(bool value) => OnPropertyChanged(nameof(IsEmpty));
+    partial void OnSelectedFolderChanged(PhotoSource? value) => RebuildGroupsFromAllItems();
 
-    partial void OnPhotoCountChanged(int value) => OnPropertyChanged(nameof(IsEmpty));
+    partial void OnMediaKindChanged(MediaKindFilter value) => RebuildGroupsFromAllItems();
+
+    partial void OnIsLoadingChanged(bool value) => OnPropertyChanged(nameof(IsEmpty));
 
     private void RebuildGroupsFromAllItems()
     {
@@ -240,8 +330,7 @@ public partial class MainViewModel : ObservableObject
         groupsByDate.Clear();
 
         var pending = new Dictionary<DateOnly, List<PhotoItem>>();
-        var source = ShowFavoritesOnly ? allItems.Where(i => i.IsFavorite) : allItems;
-        foreach (var item in source)
+        foreach (var item in allItems.Where(MatchesFilter))
         {
             Buffer(pending, item);
         }

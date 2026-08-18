@@ -13,6 +13,12 @@
     <EnableMsixTooling>true</EnableMsixTooling>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!--
+      MVVMTK0045 fires on every field-backed [ObservableProperty]. The newer partial-property
+      syntax it suggests fails to generate in this project's build setup (see CLAUDE.md), so
+      the field-backed syntax is intentional, not an oversight — suppress rather than "fix".
+    -->
+    <NoWarn>$(NoWarn);MVVMTK0045</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -53,6 +59,7 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools.WinApp" Version="0.6.0" />
   </ItemGroup>
 

@@ -22,7 +22,7 @@ public sealed class PhotoEnumerationService : IPhotoEnumerationService
         IReadOnlyList<PhotoSource> sources,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var allExtensions = ImageFormats.Standard.Concat(ImageFormats.Raw).ToList();
+        var allExtensions = ImageFormats.Standard.Concat(ImageFormats.Raw).Concat(ImageFormats.Video).ToList();
 
         foreach (var source in sources)
         {
@@ -37,6 +37,11 @@ public sealed class PhotoEnumerationService : IPhotoEnumerationService
                 var queryOptions = new QueryOptions(CommonFileQuery.DefaultQuery, allExtensions)
                 {
                     FolderDepth = FolderDepth.Deep,
+                    // The Windows Search indexer silently returns zero results for extensions
+                    // it doesn't recognize as a known content type (e.g. .mkv, .webm, .avi) even
+                    // though QueryOptions' fileTypeFilter is documented as extension-based. Force
+                    // a live file-system walk so every extension in the filter is honored.
+                    IndexerOption = IndexerOption.DoNotUseIndexer,
                 };
                 queryResult = source.Folder.CreateFileQueryWithOptions(queryOptions);
             }
@@ -82,6 +87,7 @@ public sealed class PhotoEnumerationService : IPhotoEnumerationService
                         Path = file.Path,
                         DateTaken = file.DateCreated,
                         IsRaw = ImageFormats.IsRaw(extension),
+                        IsVideo = ImageFormats.IsVideo(extension),
                     };
                 }
 

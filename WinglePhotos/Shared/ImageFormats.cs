@@ -16,7 +16,14 @@ public static class ImageFormats
         ".nef", ".cr2", ".cr3", ".arw", ".dng", ".orf", ".rw2", ".raf", ".pef", ".srw",
     };
 
+    public static readonly IReadOnlySet<string> Video = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp4", ".m4v", ".mov", ".mkv", ".avi", ".wmv", ".webm",
+    };
+
     public static bool IsRaw(string extension) => Raw.Contains(extension);
 
-    public static bool IsSupported(string extension) => Standard.Contains(extension) || Raw.Contains(extension);
+    public static bool IsVideo(string extension) => Video.Contains(extension);
+
+    public static bool IsSupported(string extension) => Standard.Contains(extension) || Raw.Contains(extension) || Video.Contains(extension);
 }
