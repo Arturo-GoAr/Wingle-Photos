@@ -28,6 +28,16 @@
             <AppBarButton Icon="Refresh" Label="Actualizar" Command="{x:Bind ViewModel.RescanCommand}" />
             <AppBarSeparator />
             <AppBarButton Label="{x:Bind ViewModel.PhotoCount, Mode=OneWay}" IsEnabled="False" />
+            <AppBarSeparator />
+            <AppBarElementContainer VerticalAlignment="Stretch">
+                <ComboBox
+                    Width="180"
+                    VerticalAlignment="Center"
+                    PlaceholderText="Filtrar por etiqueta"
+                    ItemsSource="{x:Bind ViewModel.TagOptions}"
+                    SelectedItem="{x:Bind ViewModel.SelectedTag, Mode=TwoWay}" />
+            </AppBarElementContainer>
+            <AppBarButton Icon="Clear" Label="Quitar filtro" Command="{x:Bind ViewModel.ClearTagFilterCommand}" />
         </CommandBar>
 
         <Grid Grid.Row="1">
@@ -55,7 +65,7 @@
                 Padding="12">
                 <GridView.ItemTemplate>
                     <DataTemplate x:DataType="local:PhotoItem">
-                        <Grid Width="150" Height="150" Margin="2" ContextFlyout="{StaticResource ItemMenuFlyout}">
+                        <Grid Width="150" Height="150" Margin="2">
                             <Grid.Resources>
                                 <MenuFlyout x:Key="ItemMenuFlyout" Placement="Bottom">
                                     <MenuFlyoutItem Text="Favorito" Tag="{x:Bind}" Click="FavoriteMenuItem_Click">
@@ -80,6 +90,18 @@
                                     </MenuFlyoutItem>
                                 </MenuFlyout>
                             </Grid.Resources>
+                            <!--
+                                ContextFlyout is set here, after Grid.Resources, via property-element
+                                syntax rather than as an inline attribute on the opening tag. Inline
+                                attribute syntax sets ContextFlyout before this Grid's own Resources
+                                dictionary is guaranteed populated, which intermittently threw
+                                XamlParseException("Cannot find a Resource with the Name/Key
+                                ItemMenuFlyout") once GridView started instantiating many item
+                                templates back-to-back during a large scan.
+                            -->
+                            <Grid.ContextFlyout>
+                                <StaticResource ResourceKey="ItemMenuFlyout" />
+                            </Grid.ContextFlyout>
                             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
                             <Image Source="{x:Bind Thumbnail, Mode=OneWay}" Stretch="UniformToFill" />
                             <FontIcon
@@ -126,6 +148,18 @@
                                     Margin="4,16,0,4" />
                             </DataTemplate>
                         </GroupStyle.HeaderTemplate>
+                        <!--
+                            Without an explicit ItemsWrapGrid panel here, grouped GridView falls
+                            back to a non-virtualizing panel that realizes every item in every
+                            group up front — this is what made the initial gallery load feel so
+                            heavy. ItemsWrapGrid restores per-group container virtualization so
+                            only on-screen (plus cache) items are realized.
+                        -->
+                        <GroupStyle.Panel>
+                            <ItemsPanelTemplate>
+                                <ItemsWrapGrid Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </GroupStyle.Panel>
                     </GroupStyle>
                 </GridView.GroupStyle>
             </GridView>

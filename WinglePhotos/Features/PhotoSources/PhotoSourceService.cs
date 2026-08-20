@@ -102,10 +102,12 @@ public sealed class PhotoSourceService : IPhotoSourceService
                 Folder = folder,
             };
         }
-        catch (Exception) when (!record.IsDefault)
+        catch (Exception)
         {
-            // Folder moved, deleted, or its permission token expired — surface as
-            // unavailable instead of crashing the whole source list.
+            // Folder moved, deleted, or its permission token expired (or, for a
+            // default source, the library capability isn't available on this
+            // machine/account) — surface as unavailable instead of crashing the
+            // whole source list.
             return new PhotoSource
             {
                 Token = record.Token,

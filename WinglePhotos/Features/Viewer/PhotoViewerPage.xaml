@@ -35,7 +35,17 @@
             AreTransportControlsEnabled="True"
             Visibility="Collapsed"
             HorizontalAlignment="Stretch"
-            VerticalAlignment="Stretch" />
+            VerticalAlignment="Stretch">
+            <MediaPlayerElement.TransportControls>
+                <!--
+                    IsCompact keeps the seek bar and the play/pause button on a single row
+                    (play button lands at the same height as the time labels) instead of the
+                    default multi-row layout, which left a tall, mostly-empty control bar that
+                    the custom PositionText overlay collided with.
+                -->
+                <MediaTransportControls IsCompact="True" />
+            </MediaPlayerElement.TransportControls>
+        </MediaPlayerElement>
 
         <ProgressRing x:Name="LoadingRing" HorizontalAlignment="Center" VerticalAlignment="Center" Width="48" Height="48" />
 
@@ -99,8 +109,8 @@
         <TextBlock
             x:Name="PositionText"
             HorizontalAlignment="Center"
-            VerticalAlignment="Bottom"
-            Margin="0,0,0,16"
+            VerticalAlignment="Top"
+            Margin="0,12,0,0"
             Foreground="White"
             Style="{StaticResource CaptionTextBlockStyle}" />
     </Grid>

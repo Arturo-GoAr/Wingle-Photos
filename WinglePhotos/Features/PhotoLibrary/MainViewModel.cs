@@ -21,6 +21,14 @@ public partial class MainViewModel : ObservableObject
     private readonly List<PhotoItem> allItems = new();
     private readonly Dictionary<DateOnly, PhotoDateGroup> groupsByDate = new();
 
+    // Caps concurrent StorageFile/COM thumbnail-decoding calls. GridView container
+    // recycling can fire ContainerContentChanging for dozens of items in a burst
+    // (e.g. after a grouped Reset); without a cap each one spawns its own WinRT
+    // call, and a large enough pile-up crashes the process with a native
+    // STATUS_STOWED_EXCEPTION deep inside Microsoft.UI.Xaml.dll instead of a
+    // catchable managed exception.
+    private readonly SemaphoreSlim thumbnailLoadLimiter = new(4);
+
     private CancellationTokenSource? scanCancellation;
     private Task scanTask = Task.CompletedTask;
     private bool initialized;
@@ -39,6 +47,12 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private int photoCount;
+
+    [ObservableProperty]
+    private string? selectedTag;
+
+    /// <summary>Every tag currently in use, for the CommandBar filter dropdown.</summary>
+    public ObservableCollection<string> TagOptions { get; } = new();
 
     /// <summary>Empty relative to the current filter (favorites/folder), not the whole library.</summary>
     public bool IsEmpty => !IsLoading && Groups.Count == 0;
@@ -78,7 +92,35 @@ public partial class MainViewModel : ObservableObject
         await favoritesService.LoadAsync();
         await tagsService.LoadAsync();
         await sourceService.LoadAsync();
+        RefreshTagOptions();
         await RescanAsync();
+    }
+
+    /// <summary>
+    /// Mutates <see cref="TagOptions"/> in place rather than clear-and-refill: the ComboBox's
+    /// SelectedItem is bound to it, so a Clear() would drop the selection (and, via the
+    /// TwoWay binding, silently reset SelectedTag / clear the active filter) every time a tag
+    /// is added or removed anywhere in the library.
+    /// </summary>
+    private void RefreshTagOptions()
+    {
+        var current = tagsService.AllTags;
+
+        for (var i = TagOptions.Count - 1; i >= 0; i--)
+        {
+            if (!current.Contains(TagOptions[i], StringComparer.OrdinalIgnoreCase))
+            {
+                TagOptions.RemoveAt(i);
+            }
+        }
+
+        foreach (var tag in current)
+        {
+            if (!TagOptions.Contains(tag, StringComparer.OrdinalIgnoreCase))
+            {
+                TagOptions.Add(tag);
+            }
+        }
     }
 
     [RelayCommand]
@@ -174,17 +216,37 @@ public partial class MainViewModel : ObservableObject
 
         foreach (var (date, items) in pending)
         {
-            GetOrCreateGroup(date).AddRange(items);
+            var (group, isNewGroup) = GetOrCreateGroup(date);
+
+            if (isNewGroup)
+            {
+                // Group has no realized GridView containers yet (it was just inserted
+                // into Groups above, in this same synchronous call) — a single Reset
+                // notification via AddRange is safe and avoids one layout pass per photo.
+                group.AddRange(items);
+            }
+            else
+            {
+                // Group was created by an earlier Flush and may already have realized
+                // containers in the GridView. Firing another Reset on it here (via
+                // AddRange) crashes the grouped CollectionViewSource — WinUI's grouping
+                // machinery doesn't tolerate a Reset on an already-displayed group.
+                // Per-item Add notifications are the supported way to grow it further.
+                foreach (var item in items)
+                {
+                    group.Add(item);
+                }
+            }
         }
 
         pending.Clear();
     }
 
-    private PhotoDateGroup GetOrCreateGroup(DateOnly date)
+    private (PhotoDateGroup Group, bool IsNew) GetOrCreateGroup(DateOnly date)
     {
         if (groupsByDate.TryGetValue(date, out var group))
         {
-            return group;
+            return (group, false);
         }
 
         group = new PhotoDateGroup(date);
@@ -197,7 +259,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         Groups.Insert(insertIndex, group);
-        return group;
+        return (group, true);
     }
 
     [RelayCommand]
@@ -258,6 +320,8 @@ public partial class MainViewModel : ObservableObject
         {
             item.Tags.Add(normalized);
         }
+
+        RefreshTagOptions();
     }
 
     public async Task RemoveTagAsync(PhotoItem item, string tag)
@@ -269,17 +333,66 @@ public partial class MainViewModel : ObservableObject
         {
             item.Tags.Remove(existing);
         }
+
+        RefreshTagOptions();
     }
+
+    [RelayCommand]
+    private void ClearTagFilter() => SelectedTag = null;
 
     [RelayCommand]
     private async Task LoadThumbnailAsync(PhotoItem item)
     {
-        if (item.Thumbnail is not null)
+        if (item.Thumbnail is not null || item.IsThumbnailLoading)
         {
             return;
         }
 
-        item.Thumbnail = await thumbnailCacheService.GetThumbnailAsync(item, CancellationToken.None);
+        var cts = new CancellationTokenSource();
+        item.ThumbnailLoadCts = cts;
+        item.IsThumbnailLoading = true;
+        try
+        {
+            try
+            {
+                await thumbnailLoadLimiter.WaitAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            try
+            {
+                if (item.Thumbnail is null)
+                {
+                    item.Thumbnail = await thumbnailCacheService.GetThumbnailAsync(item, cts.Token);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Container was recycled (item scrolled out of view) before the load finished.
+            }
+            finally
+            {
+                thumbnailLoadLimiter.Release();
+            }
+        }
+        finally
+        {
+            // Only touch these if this call still owns them: the recycle handler in MainPage
+            // may have already reset both synchronously (see its comment), and a newer call
+            // for the same item may already be in flight with its own CTS by the time this
+            // continuation resumes — clearing IsThumbnailLoading unconditionally would stomp
+            // on that newer load's in-progress flag.
+            if (item.ThumbnailLoadCts == cts)
+            {
+                item.ThumbnailLoadCts = null;
+                item.IsThumbnailLoading = false;
+            }
+
+            cts.Dispose();
+        }
     }
 
     /// <summary>Applies all filter dimensions at once, e.g. from sidebar navigation.</summary>
@@ -313,6 +426,12 @@ public partial class MainViewModel : ObservableObject
             return false;
         }
 
+        if (!string.IsNullOrEmpty(SelectedTag) &&
+            !item.Tags.Contains(SelectedTag, StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         return true;
     }
 
@@ -321,6 +440,8 @@ public partial class MainViewModel : ObservableObject
     partial void OnSelectedFolderChanged(PhotoSource? value) => RebuildGroupsFromAllItems();
 
     partial void OnMediaKindChanged(MediaKindFilter value) => RebuildGroupsFromAllItems();
+
+    partial void OnSelectedTagChanged(string? value) => RebuildGroupsFromAllItems();
 
     partial void OnIsLoadingChanged(bool value) => OnPropertyChanged(nameof(IsEmpty));
 

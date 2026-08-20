@@ -56,6 +56,15 @@ public partial class App : Application
     {
         InitializeComponent();
         Services = BuildServiceProvider();
+        UnhandledException += OnUnhandledException;
+    }
+
+    private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
+    {
+        // Last-resort safety net: prefer a visibly broken feature over a silent
+        // process termination when something we didn't anticipate throws.
+        System.Diagnostics.Debug.WriteLine(e.Exception);
+        e.Handled = true;
     }
 
     /// <summary>

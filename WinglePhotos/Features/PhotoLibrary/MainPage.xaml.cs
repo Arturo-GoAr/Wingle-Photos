@@ -13,7 +13,17 @@ public sealed partial class MainPage : Page
     public MainPage()
     {
         InitializeComponent();
-        Loaded += async (_, _) => await ViewModel.InitializeAsync();
+        Loaded += async (_, _) =>
+        {
+            try
+            {
+                await ViewModel.InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
+        };
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -28,10 +38,27 @@ public sealed partial class MainPage : Page
 
     private void PhotosGridView_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
-        if (!args.InRecycleQueue && args.Item is PhotoItem item)
+        if (args.Item is not PhotoItem item)
         {
-            _ = ViewModel.LoadThumbnailCommand.ExecuteAsync(item);
+            return;
         }
+
+        if (args.InRecycleQueue)
+        {
+            // Container is being recycled for reuse elsewhere — if this item's thumbnail
+            // load hasn't started yet (still waiting on the semaphore) or is mid-flight,
+            // cancel it so scrolling doesn't queue work behind items already scrolled past.
+            // IsThumbnailLoading/ThumbnailLoadCts are cleared here synchronously (not left
+            // to the load's own finally, which runs later on the dispatcher) so that if this
+            // item's container is re-realized before that finally runs, LoadThumbnailAsync
+            // doesn't see a stale "still loading" flag and skip starting a fresh load.
+            item.ThumbnailLoadCts?.Cancel();
+            item.ThumbnailLoadCts = null;
+            item.IsThumbnailLoading = false;
+            return;
+        }
+
+        _ = ViewModel.LoadThumbnailCommand.ExecuteAsync(item);
     }
 
     private void FavoriteButton_Click(object sender, RoutedEventArgs e)
