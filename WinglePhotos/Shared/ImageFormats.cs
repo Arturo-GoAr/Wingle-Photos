@@ -21,9 +21,17 @@ public static class ImageFormats
         ".mp4", ".m4v", ".mov", ".mkv", ".avi", ".wmv", ".webm",
     };
 
+    public static readonly IReadOnlySet<string> Document = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ".pdf",
+    };
+
     public static bool IsRaw(string extension) => Raw.Contains(extension);
 
     public static bool IsVideo(string extension) => Video.Contains(extension);
 
-    public static bool IsSupported(string extension) => Standard.Contains(extension) || Raw.Contains(extension) || Video.Contains(extension);
+    public static bool IsDocument(string extension) => Document.Contains(extension);
+
+    public static bool IsSupported(string extension) =>
+        Standard.Contains(extension) || Raw.Contains(extension) || Video.Contains(extension) || Document.Contains(extension);
 }

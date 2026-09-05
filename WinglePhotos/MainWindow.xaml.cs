@@ -50,6 +50,9 @@ public sealed partial class MainWindow : Window
             case "videos":
                 RootFrame.Navigate(typeof(MainPage), new MainPageNavigationArgs(FavoritesOnly: false, Folder: null, MediaKind: MediaKindFilter.Videos));
                 break;
+            case "documents":
+                RootFrame.Navigate(typeof(MainPage), new MainPageNavigationArgs(FavoritesOnly: false, Folder: null, MediaKind: MediaKindFilter.Documents));
+                break;
             case "favorites":
                 RootFrame.Navigate(typeof(MainPage), new MainPageNavigationArgs(FavoritesOnly: true, Folder: null));
                 break;

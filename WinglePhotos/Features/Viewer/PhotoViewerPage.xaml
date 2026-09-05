@@ -47,6 +47,16 @@
             </MediaPlayerElement.TransportControls>
         </MediaPlayerElement>
 
+        <!--
+            WebView2 renders PDFs via Edge's built-in PDF viewer — no separate PDF-rendering
+            package needed, since WebView2 ships as part of the Windows App SDK for WinUI 3.
+        -->
+        <WebView2
+            x:Name="PdfViewer"
+            Visibility="Collapsed"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch" />
+
         <ProgressRing x:Name="LoadingRing" HorizontalAlignment="Center" VerticalAlignment="Center" Width="48" Height="48" />
 
         <Button

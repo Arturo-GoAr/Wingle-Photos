@@ -43,6 +43,20 @@
             </StackPanel>
 
             <StackPanel Spacing="8">
+                <TextBlock Text="Vista general (&quot;Todo&quot;)" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <TextBlock
+                    Text="Elige qué tipos de elementos aparecen en la vista general. Las pestañas Fotos, Videos y Documentos siempre muestran su propio contenido, sin importar esta configuración."
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <CheckBox Content="Documentos" IsChecked="{x:Bind ViewModel.Library.ShowDocumentsInGeneralView, Mode=TwoWay}" />
+                    <CheckBox Content="Fotos" IsChecked="{x:Bind ViewModel.Library.ShowPhotosInGeneralView, Mode=TwoWay}" />
+                    <CheckBox Content="Fotos RAW" IsChecked="{x:Bind ViewModel.Library.ShowRawPhotosInGeneralView, Mode=TwoWay}" />
+                    <CheckBox Content="Videos" IsChecked="{x:Bind ViewModel.Library.ShowVideosInGeneralView, Mode=TwoWay}" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
                 <StackPanel Orientation="Horizontal" Spacing="12">
                     <TextBlock Text="Carpetas de origen" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
                     <Button Content="Agregar carpeta…" Command="{x:Bind ViewModel.Library.AddSourceCommand}" />

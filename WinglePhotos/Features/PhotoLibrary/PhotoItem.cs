@@ -13,6 +13,7 @@ public partial class PhotoItem : ObservableObject
     public required DateTimeOffset DateTaken { get; init; }
     public required bool IsRaw { get; init; }
     public required bool IsVideo { get; init; }
+    public required bool IsPdf { get; init; }
 
     public string Key => key ??= PhotoKey.For(Path, DateTaken);
 

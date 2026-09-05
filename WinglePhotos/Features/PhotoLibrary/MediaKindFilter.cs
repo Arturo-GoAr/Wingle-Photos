@@ -6,4 +6,5 @@ public enum MediaKindFilter
     All,
     Photos,
     Videos,
+    Documents,
 }

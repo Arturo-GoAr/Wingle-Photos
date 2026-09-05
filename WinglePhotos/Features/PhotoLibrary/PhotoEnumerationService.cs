@@ -22,7 +22,7 @@ public sealed class PhotoEnumerationService : IPhotoEnumerationService
         IReadOnlyList<PhotoSource> sources,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var allExtensions = ImageFormats.Standard.Concat(ImageFormats.Raw).Concat(ImageFormats.Video).ToList();
+        var allExtensions = ImageFormats.Standard.Concat(ImageFormats.Raw).Concat(ImageFormats.Video).Concat(ImageFormats.Document).ToList();
 
         foreach (var source in sources)
         {
@@ -88,6 +88,7 @@ public sealed class PhotoEnumerationService : IPhotoEnumerationService
                         DateTaken = file.DateCreated,
                         IsRaw = ImageFormats.IsRaw(extension),
                         IsVideo = ImageFormats.IsVideo(extension),
+                        IsPdf = ImageFormats.IsDocument(extension),
                     };
                 }
 

@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Windows.Storage;
 using WinglePhotos.Features.Favorites;
 using WinglePhotos.Features.PhotoSources;
+using WinglePhotos.Features.Settings;
 using WinglePhotos.Features.Tags;
 
 namespace WinglePhotos.Features.PhotoLibrary;
@@ -12,11 +13,17 @@ public partial class MainViewModel : ObservableObject
 {
     private const int FlushBatchSize = 250;
 
+    private const string ShowDocumentsSettingKey = "generalView.showDocuments";
+    private const string ShowPhotosSettingKey = "generalView.showPhotos";
+    private const string ShowRawPhotosSettingKey = "generalView.showPhotosRaw";
+    private const string ShowVideosSettingKey = "generalView.showVideos";
+
     private readonly IPhotoSourceService sourceService;
     private readonly IPhotoEnumerationService enumerationService;
     private readonly IThumbnailCacheService thumbnailCacheService;
     private readonly IFavoritesService favoritesService;
     private readonly ITagsService tagsService;
+    private readonly ISettingsStore settingsStore;
 
     private readonly List<PhotoItem> allItems = new();
     private readonly Dictionary<DateOnly, PhotoDateGroup> groupsByDate = new();
@@ -51,6 +58,24 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string? selectedTag;
 
+    /// <summary>
+    /// Which media categories appear in the general ("Todo") view. Configured from
+    /// <see cref="Settings.SettingsPage"/>. These do not affect the dedicated Fotos/Videos/
+    /// Documentos tabs, which always show their one explicit category regardless of these flags.
+    /// Documents default to hidden — the general view is photos/videos by default.
+    /// </summary>
+    [ObservableProperty]
+    private bool showDocumentsInGeneralView;
+
+    [ObservableProperty]
+    private bool showPhotosInGeneralView = true;
+
+    [ObservableProperty]
+    private bool showRawPhotosInGeneralView = true;
+
+    [ObservableProperty]
+    private bool showVideosInGeneralView = true;
+
     /// <summary>Every tag currently in use, for the CommandBar filter dropdown.</summary>
     public ObservableCollection<string> TagOptions { get; } = new();
 
@@ -66,13 +91,15 @@ public partial class MainViewModel : ObservableObject
         IPhotoEnumerationService enumerationService,
         IThumbnailCacheService thumbnailCacheService,
         IFavoritesService favoritesService,
-        ITagsService tagsService)
+        ITagsService tagsService,
+        ISettingsStore settingsStore)
     {
         this.sourceService = sourceService;
         this.enumerationService = enumerationService;
         this.thumbnailCacheService = thumbnailCacheService;
         this.favoritesService = favoritesService;
         this.tagsService = tagsService;
+        this.settingsStore = settingsStore;
         Groups.CollectionChanged += (_, _) => OnPropertyChanged(nameof(IsEmpty));
     }
 
@@ -92,8 +119,30 @@ public partial class MainViewModel : ObservableObject
         await favoritesService.LoadAsync();
         await tagsService.LoadAsync();
         await sourceService.LoadAsync();
+        await LoadVisibilitySettingsAsync();
         RefreshTagOptions();
         await RescanAsync();
+    }
+
+    /// <summary>
+    /// Sets the backing fields directly (bypassing the generated setters) so this initial
+    /// load doesn't trigger the persist-and-rebuild change handlers below before there's
+    /// anything scanned yet to rebuild.
+    /// </summary>
+    private async Task LoadVisibilitySettingsAsync()
+    {
+#pragma warning disable MVVMTK0034 // Deliberate: bypass the generated setter/notification, see the summary above.
+        showDocumentsInGeneralView = await GetBoolSettingAsync(ShowDocumentsSettingKey, defaultValue: false);
+        showPhotosInGeneralView = await GetBoolSettingAsync(ShowPhotosSettingKey, defaultValue: true);
+        showRawPhotosInGeneralView = await GetBoolSettingAsync(ShowRawPhotosSettingKey, defaultValue: true);
+        showVideosInGeneralView = await GetBoolSettingAsync(ShowVideosSettingKey, defaultValue: true);
+#pragma warning restore MVVMTK0034
+    }
+
+    private async Task<bool> GetBoolSettingAsync(string key, bool defaultValue)
+    {
+        var stored = await settingsStore.GetAsync(key);
+        return bool.TryParse(stored, out var parsed) ? parsed : defaultValue;
     }
 
     /// <summary>
@@ -410,12 +459,22 @@ public partial class MainViewModel : ObservableObject
             return false;
         }
 
-        if (MediaKind == MediaKindFilter.Photos && item.IsVideo)
+        if (MediaKind == MediaKindFilter.Photos && (item.IsVideo || item.IsPdf))
         {
             return false;
         }
 
         if (MediaKind == MediaKindFilter.Videos && !item.IsVideo)
+        {
+            return false;
+        }
+
+        if (MediaKind == MediaKindFilter.Documents && !item.IsPdf)
+        {
+            return false;
+        }
+
+        if (MediaKind == MediaKindFilter.All && !IsVisibleInGeneralView(item))
         {
             return false;
         }
@@ -435,6 +494,26 @@ public partial class MainViewModel : ObservableObject
         return true;
     }
 
+    private bool IsVisibleInGeneralView(PhotoItem item)
+    {
+        if (item.IsPdf)
+        {
+            return ShowDocumentsInGeneralView;
+        }
+
+        if (item.IsVideo)
+        {
+            return ShowVideosInGeneralView;
+        }
+
+        if (item.IsRaw)
+        {
+            return ShowRawPhotosInGeneralView;
+        }
+
+        return ShowPhotosInGeneralView;
+    }
+
     partial void OnShowFavoritesOnlyChanged(bool value) => RebuildGroupsFromAllItems();
 
     partial void OnSelectedFolderChanged(PhotoSource? value) => RebuildGroupsFromAllItems();
@@ -442,6 +521,30 @@ public partial class MainViewModel : ObservableObject
     partial void OnMediaKindChanged(MediaKindFilter value) => RebuildGroupsFromAllItems();
 
     partial void OnSelectedTagChanged(string? value) => RebuildGroupsFromAllItems();
+
+    partial void OnShowDocumentsInGeneralViewChanged(bool value)
+    {
+        _ = settingsStore.SetAsync(ShowDocumentsSettingKey, value.ToString());
+        RebuildGroupsFromAllItems();
+    }
+
+    partial void OnShowPhotosInGeneralViewChanged(bool value)
+    {
+        _ = settingsStore.SetAsync(ShowPhotosSettingKey, value.ToString());
+        RebuildGroupsFromAllItems();
+    }
+
+    partial void OnShowRawPhotosInGeneralViewChanged(bool value)
+    {
+        _ = settingsStore.SetAsync(ShowRawPhotosSettingKey, value.ToString());
+        RebuildGroupsFromAllItems();
+    }
+
+    partial void OnShowVideosInGeneralViewChanged(bool value)
+    {
+        _ = settingsStore.SetAsync(ShowVideosSettingKey, value.ToString());
+        RebuildGroupsFromAllItems();
+    }
 
     partial void OnIsLoadingChanged(bool value) => OnPropertyChanged(nameof(IsEmpty));
 

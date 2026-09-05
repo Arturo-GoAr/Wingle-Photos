@@ -39,6 +39,7 @@ public sealed partial class PhotoViewerPage : Page
     {
         base.OnNavigatedFrom(e);
         StopVideo();
+        StopPdf();
     }
 
     private async Task LoadCurrentAsync()
@@ -53,6 +54,7 @@ public sealed partial class PhotoViewerPage : Page
         var item = items[currentIndex];
 
         StopVideo();
+        StopPdf();
 
         PositionText.Text = $"{currentIndex + 1} de {items.Count}";
         UpdateFavoriteIcon(item.IsFavorite);
@@ -61,6 +63,7 @@ public sealed partial class PhotoViewerPage : Page
         {
             ImageScrollViewer.Visibility = Visibility.Collapsed;
             VideoPlayer.Visibility = Visibility.Visible;
+            PdfViewer.Visibility = Visibility.Collapsed;
             LoadingRing.IsActive = false;
             PreviewImage.Source = null;
 
@@ -69,8 +72,24 @@ public sealed partial class PhotoViewerPage : Page
             return;
         }
 
+        if (item.IsPdf)
+        {
+            ImageScrollViewer.Visibility = Visibility.Collapsed;
+            VideoPlayer.Visibility = Visibility.Collapsed;
+            PdfViewer.Visibility = Visibility.Visible;
+            LoadingRing.IsActive = false;
+            PreviewImage.Source = null;
+
+            // Setting Source lazily initializes CoreWebView2 and navigates once ready —
+            // no explicit EnsureCoreWebView2Async() call needed. Uri auto-detects the
+            // absolute file path and builds the file:// URI WebView2's PDF plugin needs.
+            PdfViewer.Source = new Uri(item.Path);
+            return;
+        }
+
         ImageScrollViewer.Visibility = Visibility.Visible;
         VideoPlayer.Visibility = Visibility.Collapsed;
+        PdfViewer.Visibility = Visibility.Collapsed;
 
         LoadingRing.IsActive = true;
         PreviewImage.Source = null;
@@ -89,6 +108,18 @@ public sealed partial class PhotoViewerPage : Page
     {
         VideoPlayer.MediaPlayer?.Pause();
         VideoPlayer.Source = null;
+    }
+
+    /// <summary>
+    /// Navigates away from the current PDF before switching items so a large document
+    /// doesn't keep rendering/loading in the background after leaving it.
+    /// </summary>
+    private void StopPdf()
+    {
+        if (PdfViewer.CoreWebView2 is not null)
+        {
+            PdfViewer.Source = new Uri("about:blank");
+        }
     }
 
     /// <summary>

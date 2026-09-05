@@ -35,6 +35,7 @@
                 <NavigationViewItem x:Name="AllPhotosItem" Content="Todo" Tag="all" Icon="Pictures" />
                 <NavigationViewItem Content="Fotos" Tag="photos" Icon="Camera" />
                 <NavigationViewItem Content="Videos" Tag="videos" Icon="Video" />
+                <NavigationViewItem Content="Documentos" Tag="documents" Icon="Document" />
                 <NavigationViewItem Content="Favoritos" Tag="favorites" Icon="Favorite" />
                 <NavigationViewItem Content="Carpetas" Tag="folders" Icon="Folder" />
             </NavigationView.MenuItems>

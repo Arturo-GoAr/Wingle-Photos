@@ -46,7 +46,7 @@ public static class PhotoDetailsDialog
                     AddRow("Resolución", $"{videoProperties.Width} x {videoProperties.Height}");
                 }
             }
-            else
+            else if (!item.IsPdf)
             {
                 var imageProperties = await file.Properties.GetImagePropertiesAsync();
                 if (imageProperties.Width > 0 && imageProperties.Height > 0)
